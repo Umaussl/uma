@@ -1,0 +1,215 @@
+import tensorflow as tf
+import matplotlib.image as img
+%matplotlib inline
+import numpy as np
+from collections import defaultdict
+import collections
+from shutil import copy
+from shutil import copytree, rmtree
+import tensorflow.keras.backend as K
+from tensorflow.keras.models import load_model
+from tensorflow.keras.preprocessing import image
+import matplotlib.pyplot as plt
+import numpy as np
+import os
+import random
+import tensorflow as tf
+import tensorflow.keras.backend as K
+from tensorflow.keras import regularizers
+from tensorflow.keras.applications.inception_v3 import InceptionV3
+from tensorflow.keras.models import Sequential, Model
+from tensorflow.keras.layers import Dense, Dropout, Activation, Flatten
+from tensorflow.keras.layers import Convolution2D, MaxPooling2D, ZeroPadding2D, GlobalAveragePooling2D, AveragePooling2D
+from tensorflow.keras.preprocessing.image import ImageDataGenerator
+from tensorflow.keras.callbacks import ModelCheckpoint, CSVLogger
+from tensorflow.keras.optimizers import SGD
+from tensorflow.keras.regularizers import l2
+from tensorflow import keras
+from tensorflow.keras import models
+import cv2
+WARNING:tensorflow:From C:\Users\91948\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\keras\src\losses.py:2976: The name tf.losses.sparse_softmax_cross_entropy is deprecated. Please use tf.compat.v1.losses.sparse_softmax_cross_entropy instead.
+
+# Helper function to download data and extract
+def get_data_extract():
+  if "food-101" in os.listdir():
+    print("Dataset already exists")
+  else:
+    print("Downloading the data...")
+    !wget http://data.vision.ee.ethz.ch/cvl/food-101.tar.gz
+    print("Dataset downloaded!")
+    print("Extracting data..")
+    !tar xzvf food-101.tar.gz
+    print("Extraction done!")
+# Download data and extract it to folder
+
+get_data_extract()
+Downloading the data...
+Dataset downloaded!
+Extracting data..
+'wget' is not recognized as an internal or external command,
+operable program or batch file.
+Extraction done!
+tar: Error opening archive: Failed to open 'food-101.tar.gz'
+Understand dataset structure and files
+# Check the extracted dataset folder
+!ls food-101/
+'ls' is not recognized as an internal or external command,
+operable program or batch file.
+os.listdir('food-101/images')
+['macarons',
+ 'french_toast',
+ 'lobster_bisque',
+ 'prime_rib',
+ 'pork_chop',
+ 'guacamole',
+ 'baby_back_ribs',
+ 'mussels',
+ 'beef_carpaccio',
+ 'poutine',
+ 'hot_and_sour_soup',
+ 'seaweed_salad',
+ 'foie_gras',
+ 'dumplings',
+ 'peking_duck',
+ 'takoyaki',
+ 'bibimbap',
+ 'falafel',
+ 'pulled_pork_sandwich',
+ 'lobster_roll_sandwich',
+ 'carrot_cake',
+ 'beet_salad',
+ 'panna_cotta',
+ 'donuts',
+ 'red_velvet_cake',
+ 'grilled_cheese_sandwich',
+ 'cannoli',
+ 'spring_rolls',
+ 'shrimp_and_grits',
+ 'clam_chowder',
+ 'omelette',
+ 'fried_calamari',
+ 'caprese_salad',
+ 'oysters',
+ 'scallops',
+ 'ramen',
+ 'grilled_salmon',
+ 'croque_madame',
+ 'filet_mignon',
+ 'hamburger',
+ 'spaghetti_carbonara',
+ 'miso_soup',
+ 'bread_pudding',
+ 'lasagna',
+ 'crab_cakes',
+ 'cheesecake',
+ 'spaghetti_bolognese',
+ 'cup_cakes',
+ 'creme_brulee',
+ 'waffles',
+ 'fish_and_chips',
+ 'paella',
+ 'macaroni_and_cheese',
+ 'chocolate_mousse',
+ 'ravioli',
+ 'chicken_curry',
+ 'caesar_salad',
+ 'nachos',
+ 'tiramisu',
+ 'frozen_yogurt',
+ 'ice_cream',
+ 'risotto',
+ 'club_sandwich',
+ 'strawberry_shortcake',
+ 'steak',
+ 'churros',
+ 'garlic_bread',
+ 'baklava',
+ 'bruschetta',
+ 'hummus',
+ 'chicken_wings',
+ 'greek_salad',
+ 'tuna_tartare',
+ 'chocolate_cake',
+ 'gyoza',
+ 'eggs_benedict',
+ 'deviled_eggs',
+ 'samosa',
+ 'sushi',
+ 'breakfast_burrito',
+ 'ceviche',
+ 'beef_tartare',
+ 'apple_pie',
+ '.DS_Store',
+ 'huevos_rancheros',
+ 'beignets',
+ 'pizza',
+ 'edamame',
+ 'french_onion_soup',
+ 'hot_dog',
+ 'tacos',
+ 'chicken_quesadilla',
+ 'pho',
+ 'gnocchi',
+ 'pancakes',
+ 'fried_rice',
+ 'cheese_plate',
+ 'onion_rings',
+ 'escargots',
+ 'sashimi',
+ 'pad_thai',
+ 'french_fries']
+os.listdir('food-101/meta')
+---------------------------------------------------------------------------
+FileNotFoundError                         Traceback (most recent call last)
+Cell In[4], line 1
+----> 1 os.listdir('food-101/meta')
+
+FileNotFoundError: [WinError 3] The system cannot find the path specified: 'food-101/meta'
+!head food-101/meta/train.txt
+apple_pie/1005649
+apple_pie/1014775
+apple_pie/1026328
+apple_pie/1028787
+apple_pie/1043283
+apple_pie/1050519
+apple_pie/1057749
+apple_pie/1057810
+apple_pie/1072416
+apple_pie/1074856
+!head food-101/meta/classes.txt
+apple_pie
+baby_back_ribs
+baklava
+beef_carpaccio
+beef_tartare
+beet_salad
+beignets
+bibimbap
+bread_pudding
+breakfast_burrito
+Visualize random image from each of the 101 classes
+# Visualize the data, showing one image per class from 101 classes
+rows = 17
+cols = 6
+fig, ax = plt.subplots(rows, cols, figsize=(25,25))
+fig.suptitle("Showing one random image from each class", y=1.05, fontsize=24) # Adding  y=1.05, fontsize=24 helped me fix the suptitle overlapping with axes issue
+data_dir = "food-101/images/"
+foods_sorted = sorted(os.listdir(data_dir))
+food_id = 0
+for i in range(rows):
+  for j in range(cols):
+    try:
+      food_selected = foods_sorted[food_id] 
+      food_id += 1
+    except:
+      break
+    if food_selected == '.DS_Store':
+        continue
+    food_selected_images = os.listdir(os.path.join(data_dir,food_selected)) # returns the list of all files present in each food category
+    food_selected_random = np.random.choice(food_selected_images) # picks one food item from the list as choice, takes a list and returns one random item
+    img = plt.imread(os.path.join(data_dir,food_selected, food_selected_random))
+    ax[i][j].imshow(img)
+    ax[i][j].set_title(food_selected, pad = 10)
+    
+plt.setp(ax, xticks=[],yticks=[])
+plt.tight_layout()
